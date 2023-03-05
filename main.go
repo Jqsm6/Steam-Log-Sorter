@@ -127,9 +127,61 @@ func extractSteamData(logsFolder string) error {
 				if err != nil {
 					log.Println(steamFolderPath, err)
 				}
+				arrSteamAccounts, err := getSteamAccounts(logFolderPath)
+				if err != nil {
+					return fmt.Errorf("Произошла ошибка при получение данных аккаунтов: %v", err)
+				}
+				steamAccountsPath := dirName + "/Data.txt"
+				steamAccountsFile, err := os.Create(steamAccountsPath)
+				if err != nil {
+					return fmt.Errorf("Произошла ошибка при создание файла для записи данных аккаунтов: %v", err)
+				}
+				defer steamAccountsFile.Close()
+				steamAccountsFile.WriteString(steamFolderPath + "\n")
+				steamAccountsFile.WriteString(strings.Join(arrSteamAccounts, "\n"))
+
 				folderIndex += 1
 			}
 		}
 	}
 	return nil
+}
+
+func getSteamAccounts(dirPath string) ([]string, error) {
+	file, err := os.Open(filepath.Join(dirPath, "Passwords.txt"))
+	if err != nil {
+		return nil, err
+	}
+	defer file.Close()
+
+	scanner := bufio.NewScanner(file)
+	var accounts []string
+	var currentAccount string
+	var inSteamBlock bool
+
+	for scanner.Scan() {
+		line := scanner.Text()
+		if strings.HasPrefix(line, "URL: ") && strings.Contains(line, "steam") {
+			currentAccount = ""
+			inSteamBlock = true
+		} else if inSteamBlock && strings.HasPrefix(line, "Username: ") {
+			username := strings.TrimPrefix(line, "Username: ")
+			currentAccount = username + ":"
+		} else if inSteamBlock && strings.HasPrefix(line, "Password: ") {
+			password := strings.TrimPrefix(line, "Password: ")
+			currentAccount += password
+			if currentAccount != ":" {
+				accounts = append(accounts, currentAccount)
+			}
+			inSteamBlock = false
+		} else {
+			inSteamBlock = false
+		}
+	}
+
+	if err := scanner.Err(); err != nil {
+		return nil, err
+	}
+
+	return accounts, nil
 }
