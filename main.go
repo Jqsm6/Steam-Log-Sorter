@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"time"
 )
 
 func main() {
@@ -35,18 +36,19 @@ func extractSteamData(logsFolder string) error {
 	}
 
 	folderIndex := 1
-	for _, logFoldlogsFolder := range logsFolders {
-		logFolderPath := filepath.Join(logsFolder, logFoldlogsFolder.Name())
+	steamAccountsFileIndex := 1
+	for _, logFolder := range logsFolders {
+		logFolderPath := filepath.Join(logsFolder, logFolder.Name())
 		passwordFile := filepath.Join(logFolderPath, "Passwords.txt")
 		steamFolderPath := filepath.Join(logFolderPath, "Steam")
 
 		if _, err := os.Stat(steamFolderPath); err != nil {
-			log.Printf("В логе %s нету папки Steam", logFoldlogsFolder.Name())
+			log.Printf("В логе %s нету папки Steam", logFolder.Name())
 			continue
 		}
 
 		if _, err := os.Stat(passwordFile); err != nil {
-			log.Printf("В логе %s нету Passwords.txt", logFoldlogsFolder.Name())
+			log.Printf("В логе %s нету Passwords.txt", logFolder.Name())
 			continue
 		}
 
@@ -137,28 +139,27 @@ func extractSteamData(logsFolder string) error {
 					log.Println(steamFolderPath, err)
 				}
 
-				steamAccountsPath := dirName + "/LogPass.txt"
-				steamAccountsFile, err := os.Create(steamAccountsPath)
-				if err != nil {
-					return fmt.Errorf("Произошла ошибка при создании файла для записи данных аккаунта: %v", err)
+				for i, account := range arrSteamAccounts {
+					steamAccountsPath := fmt.Sprintf("%s/%d.txt", dirName, i+1)
+					steamAccountsFile, err := os.Create(steamAccountsPath)
+					if err != nil {
+						return fmt.Errorf("Произошла ошибка при создании файла для записи данных аккаунта: %v", err)
+					}
+					defer steamAccountsFile.Close()
+
+					steamAccountsFile.WriteString(account + "\n")
 				}
-				defer steamAccountsFile.Close()
-
-				steamAccountsFile.WriteString(strings.Join(arrSteamAccounts, "\n"))
-
-				logPath := dirName + "/Path.txt"
-				logPathFile, err := os.Create(logPath)
-				if err != nil {
-					return fmt.Errorf("Произошла ошибка при создании файла для записи путей к логам: %v", err)
-				}
-				defer logPathFile.Close()
-
-				logPathFile.WriteString(logFolderPath)
 
 				folderIndex += 1
+				steamAccountsFileIndex += 1
 			}
 		}
 	}
+
+	dt := time.Now()
+	folderResultsName := dt.Format("2006-01-02 15:04:05")
+	folderResultsName = "./Results " + folderResultsName
+	err = os.Rename("./Results", folderResultsName)
 
 	return nil
 }
