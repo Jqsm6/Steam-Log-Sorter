@@ -18,9 +18,8 @@ func main() {
 
 func getDirectory() string {
 	s := bufio.NewScanner(os.Stdin)
-	fmt.Println("Logs folder path: ")
+	fmt.Println("Директория с логами: ")
 	s.Scan()
-
 	return s.Text()
 }
 
@@ -30,7 +29,7 @@ func extractSteamData(logsFolder string) error {
 		log.Fatal(err)
 	}
 
-	err = os.MkdirAll("./Results", 0755)
+	err = os.MkdirAll("./Results", os.FileMode(0755))
 	if err != nil {
 		return fmt.Errorf("Неудалось создать папку для сохранения результатов: %v\n", err)
 	}
@@ -42,12 +41,12 @@ func extractSteamData(logsFolder string) error {
 		steamFolderPath := filepath.Join(logFolderPath, "Steam")
 
 		if _, err := os.Stat(steamFolderPath); err != nil {
-			log.Println(logFolderPath, "No Steam folder.")
+			log.Printf("В логе %s нету папки Steam", logFoldlogsFolder.Name())
 			continue
 		}
 
 		if _, err := os.Stat(passwordFile); err != nil {
-			log.Println(logFolderPath, "No Passwords.txt")
+			log.Printf("В логе %s нету Passwords.txt", logFoldlogsFolder.Name())
 			continue
 		}
 
@@ -59,13 +58,22 @@ func extractSteamData(logsFolder string) error {
 
 		for _, steamFolder := range steamFolders {
 			if strings.Contains(steamFolder.Name(), "loginusers.vdf") {
+				arrSteamAccounts, err := getSteamAccounts(logFolderPath)
+				if err != nil {
+					return fmt.Errorf("Произошла ошибка при получение данных аккаунтов: %v", err)
+				}
+
+				if len(arrSteamAccounts) == 0 {
+					continue
+				}
+
 				folderIndexString := strconv.Itoa(folderIndex)
 				dirName := filepath.Join("./Results", folderIndexString)
-				err = os.Mkdir(dirName, 0755)
+				err = os.Mkdir(dirName, os.FileMode(0755))
 				if err != nil {
 					return fmt.Errorf("Неудалось создать подпапку для сохранения результата: %v\n", err)
 				}
-				// Extract loginusers.vdf
+
 				loginusersFile, err := os.Open(filepath.Join(steamFolderPath, steamFolder.Name()))
 				if err != nil {
 					log.Println(steamFolderPath, err)
@@ -83,7 +91,6 @@ func extractSteamData(logsFolder string) error {
 					return fmt.Errorf("Неудалось скопировать содержимое файла loginusers.vdf: %v\n", err)
 				}
 
-				// Extract config.vdf
 				configFilePath := filepath.Join(steamFolderPath, "config.vdf")
 				configFile, err := os.Open(configFilePath)
 				if err != nil {
@@ -101,11 +108,12 @@ func extractSteamData(logsFolder string) error {
 				if _, err := io.Copy(configResultFile, configFile); err != nil {
 					return fmt.Errorf("Неудалось скопировать содержимое файла config.vdf: %v\n", err)
 				}
-				// Extract ssfn
+
 				err = filepath.Walk(steamFolderPath, func(path string, info os.FileInfo, err error) error {
 					if err != nil {
 						return err
 					}
+
 					if !info.IsDir() && strings.HasPrefix(info.Name(), "ssfn") {
 						ssfnResultPath := filepath.Join(dirName, info.Name())
 						ssfnResultFile, err := os.Create(ssfnResultPath)
@@ -113,6 +121,7 @@ func extractSteamData(logsFolder string) error {
 							return fmt.Errorf("Неудалось создать файл для записи %s: %v\n", info.Name(), err)
 						}
 						defer ssfnResultFile.Close()
+
 						ssfnFile, err := os.Open(path)
 						if err != nil {
 							log.Println(steamFolderPath, err)
@@ -127,23 +136,30 @@ func extractSteamData(logsFolder string) error {
 				if err != nil {
 					log.Println(steamFolderPath, err)
 				}
-				arrSteamAccounts, err := getSteamAccounts(logFolderPath)
-				if err != nil {
-					return fmt.Errorf("Произошла ошибка при получение данных аккаунтов: %v", err)
-				}
-				steamAccountsPath := dirName + "/Data.txt"
+
+				steamAccountsPath := dirName + "/LogPass.txt"
 				steamAccountsFile, err := os.Create(steamAccountsPath)
 				if err != nil {
-					return fmt.Errorf("Произошла ошибка при создание файла для записи данных аккаунтов: %v", err)
+					return fmt.Errorf("Произошла ошибка при создании файла для записи данных аккаунта: %v", err)
 				}
 				defer steamAccountsFile.Close()
-				steamAccountsFile.WriteString(steamFolderPath + "\n")
+
 				steamAccountsFile.WriteString(strings.Join(arrSteamAccounts, "\n"))
+
+				logPath := dirName + "/Path.txt"
+				logPathFile, err := os.Create(logPath)
+				if err != nil {
+					return fmt.Errorf("Произошла ошибка при создании файла для записи путей к логам: %v", err)
+				}
+				defer logPathFile.Close()
+
+				logPathFile.WriteString(logFolderPath)
 
 				folderIndex += 1
 			}
 		}
 	}
+
 	return nil
 }
 
